@@ -546,10 +546,14 @@ scan_packages() {
                     # Check if package exists in this section
                     if command -v timeout >/dev/null 2>&1; then
                         debug_log "  Using timeout for jq commands"
+                        local jq_cmd="timeout 5 jq -e \".${section} | has(\\\"${package_name}\\\")\" \"$file\""
+                        debug_log "  JQ command: $jq_cmd"
                         local jq_result
                         if jq_result=$(timeout 5 jq -e ".${section} | has(\"${package_name}\")" "$file" 2>&1); then
                             debug_log "  Package found in $section"
                             # Get the version
+                            local version_cmd="timeout 5 jq -r \".${section}[\\\"${package_name}\\\"]\" \"$file\""
+                            debug_log "  Version command: $version_cmd"
                             local version
                             if version=$(timeout 5 jq -r ".${section}[\"${package_name}\"]" "$file" 2>&1); then
                                 debug_log "  Version retrieved: $version"
