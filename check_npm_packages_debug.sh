@@ -421,26 +421,15 @@ scan_packages() {
     debug_log "Reading package files from temp file"
     local file_count=0
     
-    # More robust file reading that works across different bash versions
+    # Simplified file reading that works reliably across all systems
     if [[ -s "$temp_file" ]]; then
         debug_log "Temp file has content, reading files..."
         
-        # Try the standard method first
-        while IFS= read -r file || [[ -n "$file" ]]; do
-            if [[ -n "$file" ]]; then
-                package_files+=("$file")
-                ((file_count++))
-                debug_log "Added package file $file_count: $file"
-            fi
-        done < "$temp_file"
-        
-        # If no files were read, try alternative method
-        if [[ $file_count -eq 0 ]]; then
-            debug_log "No files read with standard method, trying alternative..."
-            # Alternative method using mapfile (bash 4.0+)
-            if command -v mapfile >/dev/null 2>&1; then
-                debug_log "Using mapfile method"
-                mapfile -t temp_files < "$temp_file"
+        # Use mapfile if available (most reliable method)
+        if command -v mapfile >/dev/null 2>&1; then
+            debug_log "Using mapfile method (most reliable)"
+            if mapfile -t temp_files < "$temp_file" 2>/dev/null; then
+                debug_log "mapfile succeeded, processing ${#temp_files[@]} files"
                 for file in "${temp_files[@]}"; do
                     if [[ -n "$file" ]]; then
                         package_files+=("$file")
@@ -449,19 +438,38 @@ scan_packages() {
                     fi
                 done
             else
-                debug_log "Using cat + readarray method"
-                # Fallback: use cat and readarray
-                local temp_content
-                temp_content=$(cat "$temp_file" 2>/dev/null)
-                if [[ -n "$temp_content" ]]; then
-                    while IFS=$'\n' read -r file; do
-                        if [[ -n "$file" ]]; then
-                            package_files+=("$file")
-                            ((file_count++))
-                            debug_log "Added package file $file_count: $file"
-                        fi
-                    done <<< "$temp_content"
-                fi
+                debug_log "mapfile failed, trying alternative method"
+                # Fallback to simple method
+                while IFS= read -r file; do
+                    if [[ -n "$file" ]]; then
+                        package_files+=("$file")
+                        ((file_count++))
+                        debug_log "Added package file $file_count: $file"
+                    fi
+                done < "$temp_file"
+            fi
+        else
+            debug_log "Using readarray method (fallback)"
+            # Fallback: use readarray
+            if readarray -t temp_files < "$temp_file" 2>/dev/null; then
+                debug_log "readarray succeeded, processing ${#temp_files[@]} files"
+                for file in "${temp_files[@]}"; do
+                    if [[ -n "$file" ]]; then
+                        package_files+=("$file")
+                        ((file_count++))
+                        debug_log "Added package file $file_count: $file"
+                    fi
+                done
+            else
+                debug_log "readarray failed, trying simple method"
+                # Final fallback
+                while IFS= read -r file; do
+                    if [[ -n "$file" ]]; then
+                        package_files+=("$file")
+                        ((file_count++))
+                        debug_log "Added package file $file_count: $file"
+                    fi
+                done < "$temp_file"
             fi
         fi
         
