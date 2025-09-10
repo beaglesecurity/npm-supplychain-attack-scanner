@@ -638,7 +638,7 @@ scan_packages() {
                     debug_log "  Package not found in any section of this file"
                 fi
                 
-                ((checked_files++))
+                checked_files=$((checked_files + 1))
             done
         fi
         
