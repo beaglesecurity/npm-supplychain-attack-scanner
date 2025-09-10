@@ -1,0 +1,15 @@
+{
+  "name": "subproject",
+  "version": "1.0.0",
+  "description": "Subproject with different versions",
+  "dependencies": {
+    "slice-ansi": "7.1.1",
+    "color": "5.0.1",
+    "chalk": "4.1.2",
+    "debug": "3.2.6"
+  },
+  "devDependencies": {
+    "color-string": "2.1.1",
+    "simple-swizzle": "0.2.3"
+  }
+}
