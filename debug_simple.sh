@@ -16,10 +16,14 @@ echo "Section: $section"
 
 # Test 1: Basic jq command
 echo "Test 1: Basic jq command"
-if jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
-    echo "✓ Basic jq command works"
+jq_result=$(jq -e ".${section} | has(\"${package_name}\")" "$file" 2>&1)
+echo "Result: $jq_result"
+if [[ "$jq_result" == "true" ]]; then
+    echo "✓ Package found"
+elif [[ "$jq_result" == "false" ]]; then
+    echo "✓ Package not found (correct behavior)"
 else
-    echo "✗ Basic jq command failed"
+    echo "✗ jq command failed: $jq_result"
 fi
 
 # Test 2: jq with timeout
