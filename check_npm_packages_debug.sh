@@ -430,13 +430,18 @@ scan_packages() {
             debug_log "Using mapfile method (most reliable)"
             if mapfile -t temp_files < "$temp_file" 2>/dev/null; then
                 debug_log "mapfile succeeded, processing ${#temp_files[@]} files"
+                debug_log "temp_files array contents: ${temp_files[*]}"
                 for file in "${temp_files[@]}"; do
+                    debug_log "Processing file: '$file'"
                     if [[ -n "$file" ]]; then
                         package_files+=("$file")
                         ((file_count++))
                         debug_log "Added package file $file_count: $file"
+                    else
+                        debug_log "Skipping empty file entry"
                     fi
                 done
+                debug_log "Finished processing temp_files array"
             else
                 debug_log "mapfile failed, trying alternative method"
                 # Fallback to simple method
@@ -453,13 +458,18 @@ scan_packages() {
             # Fallback: use readarray
             if readarray -t temp_files < "$temp_file" 2>/dev/null; then
                 debug_log "readarray succeeded, processing ${#temp_files[@]} files"
+                debug_log "temp_files array contents: ${temp_files[*]}"
                 for file in "${temp_files[@]}"; do
+                    debug_log "Processing file: '$file'"
                     if [[ -n "$file" ]]; then
                         package_files+=("$file")
                         ((file_count++))
                         debug_log "Added package file $file_count: $file"
+                    else
+                        debug_log "Skipping empty file entry"
                     fi
                 done
+                debug_log "Finished processing temp_files array"
             else
                 debug_log "readarray failed, trying simple method"
                 # Final fallback
@@ -482,6 +492,10 @@ scan_packages() {
     rm -f "$temp_file"
     
     debug_log "Total package files found: ${#package_files[@]}"
+    debug_log "package_files array contents: ${package_files[*]}"
+    
+    # Debug: Check if we can continue
+    debug_log "About to proceed with package scanning..."
     
     if [[ ${#package_files[@]} -eq 0 ]]; then
         log_warning "No package.json files found in $REPO_PATH"
