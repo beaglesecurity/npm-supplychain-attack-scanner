@@ -42,9 +42,10 @@ The scripts check for these packages:
 ## Requirements
 
 ### Shell Script (`check_npm_packages.sh`)
-- Bash 3.2+ (compatible with macOS default bash)
+- Bash 3.2+ (compatible with macOS default bash and Linux)
 - `jq` command-line JSON processor
-- Standard Unix tools (find, grep, sed)
+- Standard Unix tools (find, grep, sed, mktemp)
+- `timeout` command (optional, for performance optimization)
 
 Install jq:
 ```bash
@@ -176,8 +177,10 @@ Both scripts include comprehensive error handling for:
 
 ### Shell Script Specific
 - Requires `jq` command-line JSON processor
-- Uses `timeout` to prevent hanging on large files
+- Uses `timeout` to prevent hanging on large files (when available)
 - Handles empty arrays gracefully
+- Uses temporary files instead of process substitution for Linux compatibility
+- Fallback date command handling for different Linux distributions
 
 ## Customization
 
@@ -185,9 +188,11 @@ To modify the package list, edit the `PACKAGES` array in the shell script or `$s
 
 ## Recent Updates
 
+- **Linux compatibility**: Fixed date command and timeout command compatibility issues
+- **Process substitution**: Replaced with temporary files for better Linux compatibility
 - **Bug fixes**: Fixed array bounds checking issues in shell script
 - **Improved error handling**: Better handling of empty directories and missing files
-- **Performance optimizations**: Added timeout protection for large files
+- **Performance optimizations**: Added timeout protection for large files (when available)
 - **Testing**: Comprehensive test suite validates both scripts produce identical results
 
 ## Integration

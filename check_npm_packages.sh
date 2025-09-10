@@ -173,20 +173,39 @@ check_package_in_file() {
     local sections=("dependencies" "devDependencies" "peerDependencies" "optionalDependencies")
     
     for section in "${sections[@]}"; do
-        # Use timeout to prevent hanging
-        if timeout 5 jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
-            local version
-            version=$(timeout 5 jq -r ".${section}[\"${package_name}\"]" "$file" 2>/dev/null)
-            
-            if [[ -n "$version" && "$version" != "null" ]]; then
-                # Check if version matches (exact match or range contains the target)
-                if [[ "$version" == "$expected_version" ]] || [[ "$version" == "^$expected_version" ]] || 
-                   [[ "$version" == "~$expected_version" ]] || [[ "$version" == ">=$expected_version" ]]; then
-                    echo "$section:$version:EXACT_MATCH"
-                    return 0
-                else
-                    echo "$section:$version:VERSION_MISMATCH"
-                    return 2  # Found package but version doesn't match
+        # Use timeout to prevent hanging (if available)
+        if command -v timeout >/dev/null 2>&1; then
+            if timeout 5 jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
+                local version
+                version=$(timeout 5 jq -r ".${section}[\"${package_name}\"]" "$file" 2>/dev/null)
+                
+                if [[ -n "$version" && "$version" != "null" ]]; then
+                    # Check if version matches (exact match or range contains the target)
+                    if [[ "$version" == "$expected_version" ]] || [[ "$version" == "^$expected_version" ]] || 
+                       [[ "$version" == "~$expected_version" ]] || [[ "$version" == ">=$expected_version" ]]; then
+                        echo "$section:$version:EXACT_MATCH"
+                        return 0
+                    else
+                        echo "$section:$version:VERSION_MISMATCH"
+                        return 2  # Found package but version doesn't match
+                    fi
+                fi
+            fi
+        else
+            if jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
+                local version
+                version=$(jq -r ".${section}[\"${package_name}\"]" "$file" 2>/dev/null)
+                
+                if [[ -n "$version" && "$version" != "null" ]]; then
+                    # Check if version matches (exact match or range contains the target)
+                    if [[ "$version" == "$expected_version" ]] || [[ "$version" == "^$expected_version" ]] || 
+                       [[ "$version" == "~$expected_version" ]] || [[ "$version" == ">=$expected_version" ]]; then
+                        echo "$section:$version:EXACT_MATCH"
+                        return 0
+                    else
+                        echo "$section:$version:VERSION_MISMATCH"
+                        return 2  # Found package but version doesn't match
+                    fi
                 fi
             fi
         fi
@@ -220,12 +239,15 @@ check_package_usage() {
 scan_packages() {
     local package_files=()
     
-    # Compatible with bash 3.2+ (macOS default)
+    # Compatible with bash 3.2+ (macOS default) and Linux
+    local temp_file=$(mktemp)
+    find_package_files | head -50 > "$temp_file"
     while IFS= read -r file; do
         if [[ -n "$file" ]]; then
             package_files+=("$file")
         fi
-    done < <(find_package_files | head -50)
+    done < "$temp_file"
+    rm -f "$temp_file"
     
     if [[ ${#package_files[@]} -eq 0 ]]; then
         log_warning "No package.json files found in $REPO_PATH"
@@ -259,29 +281,57 @@ scan_packages() {
             
             for section in "${sections[@]}"; do
                 # Check if package exists in this section
-                if timeout 5 jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
-                    # Get the version
-                    local version=$(timeout 5 jq -r ".${section}[\"${package_name}\"]" "$file" 2>/dev/null)
-                    
-                    if [[ -n "$version" && "$version" != "null" ]]; then
-                        file_found=true
-                        log_info "    Found in $section: $version"
+                if command -v timeout >/dev/null 2>&1; then
+                    if timeout 5 jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
+                        # Get the version
+                        local version=$(timeout 5 jq -r ".${section}[\"${package_name}\"]" "$file" 2>/dev/null)
                         
-                        # Check if version matches exactly or in acceptable range
-                        if [[ "$version" == "$expected_version" ]] || 
-                           [[ "$version" == "^$expected_version" ]] || 
-                           [[ "$version" == "~$expected_version" ]] || 
-                           [[ "$version" == ">=$expected_version" ]]; then
-                            found=true
-                            version_match=true
-                            details="$details\n  EXACT VERSION MATCH in $(basename "$file") ($section: $version)"
-                            log_info "    ✓ VERSION MATCH!"
-                        else
-                            found=true
-                            details="$details\n  DIFFERENT VERSION in $(basename "$file") ($section: $version, expected: $expected_version)"
-                            log_info "    ✗ Different version"
+                        if [[ -n "$version" && "$version" != "null" ]]; then
+                            file_found=true
+                            log_info "    Found in $section: $version"
+                            
+                            # Check if version matches exactly or in acceptable range
+                            if [[ "$version" == "$expected_version" ]] || 
+                               [[ "$version" == "^$expected_version" ]] || 
+                               [[ "$version" == "~$expected_version" ]] || 
+                               [[ "$version" == ">=$expected_version" ]]; then
+                                found=true
+                                version_match=true
+                                details="$details\n  EXACT VERSION MATCH in $(basename "$file") ($section: $version)"
+                                log_info "    ✓ VERSION MATCH!"
+                            else
+                                found=true
+                                details="$details\n  DIFFERENT VERSION in $(basename "$file") ($section: $version, expected: $expected_version)"
+                                log_info "    ✗ Different version"
+                            fi
+                            break
                         fi
-                        break
+                    fi
+                else
+                    if jq -e ".${section} | has(\"${package_name}\")" "$file" >/dev/null 2>&1; then
+                        # Get the version
+                        local version=$(jq -r ".${section}[\"${package_name}\"]" "$file" 2>/dev/null)
+                        
+                        if [[ -n "$version" && "$version" != "null" ]]; then
+                            file_found=true
+                            log_info "    Found in $section: $version"
+                            
+                            # Check if version matches exactly or in acceptable range
+                            if [[ "$version" == "$expected_version" ]] || 
+                               [[ "$version" == "^$expected_version" ]] || 
+                               [[ "$version" == "~$expected_version" ]] || 
+                               [[ "$version" == ">=$expected_version" ]]; then
+                                found=true
+                                version_match=true
+                                details="$details\n  EXACT VERSION MATCH in $(basename "$file") ($section: $version)"
+                                log_info "    ✓ VERSION MATCH!"
+                            else
+                                found=true
+                                details="$details\n  DIFFERENT VERSION in $(basename "$file") ($section: $version, expected: $expected_version)"
+                                log_info "    ✗ Different version"
+                            fi
+                            break
+                        fi
                     fi
                 fi
             done
@@ -323,7 +373,7 @@ output_results() {
         # JSON output
         echo "{"
         echo "  \"repository\": \"$REPO_PATH\","
-        echo "  \"scan_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
+        echo "  \"scan_timestamp\": \"$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date '+%Y-%m-%dT%H:%M:%SZ')\","
         echo "  \"total_packages_checked\": ${#PACKAGES[@]},"
         echo "  \"found_packages\": ["
         
@@ -368,7 +418,7 @@ output_results() {
         echo "NPM Package Scan Results"
         echo "======================================"
         echo "Repository: $REPO_PATH"
-        echo "Scan Date: $(date)"
+        echo "Scan Date: $(date '+%a %b %d %H:%M:%S %Z %Y' 2>/dev/null || date)"
         echo "Total Packages Checked: ${#PACKAGES[@]}"
         echo ""
         
