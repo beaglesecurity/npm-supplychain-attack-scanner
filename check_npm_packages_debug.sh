@@ -412,15 +412,63 @@ scan_packages() {
     debug_log "Finding package files and storing in temp file"
     find_package_files | head -50 > "$temp_file"
     
+    # Debug: Check temp file content
+    debug_log "Temp file path: $temp_file"
+    debug_log "Temp file size: $(wc -l < "$temp_file" 2>/dev/null || echo '0') lines"
+    debug_log "Temp file content:"
+    debug_log "$(cat "$temp_file" 2>/dev/null || echo 'Could not read temp file')"
+    
     debug_log "Reading package files from temp file"
     local file_count=0
-    while IFS= read -r file; do
-        if [[ -n "$file" ]]; then
-            package_files+=("$file")
-            ((file_count++))
-            debug_log "Added package file $file_count: $file"
+    
+    # More robust file reading that works across different bash versions
+    if [[ -s "$temp_file" ]]; then
+        debug_log "Temp file has content, reading files..."
+        
+        # Try the standard method first
+        while IFS= read -r file || [[ -n "$file" ]]; do
+            if [[ -n "$file" ]]; then
+                package_files+=("$file")
+                ((file_count++))
+                debug_log "Added package file $file_count: $file"
+            fi
+        done < "$temp_file"
+        
+        # If no files were read, try alternative method
+        if [[ $file_count -eq 0 ]]; then
+            debug_log "No files read with standard method, trying alternative..."
+            # Alternative method using mapfile (bash 4.0+)
+            if command -v mapfile >/dev/null 2>&1; then
+                debug_log "Using mapfile method"
+                mapfile -t temp_files < "$temp_file"
+                for file in "${temp_files[@]}"; do
+                    if [[ -n "$file" ]]; then
+                        package_files+=("$file")
+                        ((file_count++))
+                        debug_log "Added package file $file_count: $file"
+                    fi
+                done
+            else
+                debug_log "Using cat + readarray method"
+                # Fallback: use cat and readarray
+                local temp_content
+                temp_content=$(cat "$temp_file" 2>/dev/null)
+                if [[ -n "$temp_content" ]]; then
+                    while IFS=$'\n' read -r file; do
+                        if [[ -n "$file" ]]; then
+                            package_files+=("$file")
+                            ((file_count++))
+                            debug_log "Added package file $file_count: $file"
+                        fi
+                    done <<< "$temp_content"
+                fi
+            fi
         fi
-    done < "$temp_file"
+        
+        debug_log "Finished reading files from temp file"
+    else
+        debug_log "Temp file is empty or doesn't exist"
+    fi
     
     debug_log "Cleaning up temporary file"
     rm -f "$temp_file"
