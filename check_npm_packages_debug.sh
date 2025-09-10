@@ -434,9 +434,11 @@ scan_packages() {
                 for file in "${temp_files[@]}"; do
                     debug_log "Processing file: '$file'"
                     if [[ -n "$file" ]]; then
-                        package_files+=("$file")
-                        ((file_count++))
+                        debug_log "Adding file to package_files array..."
+                        package_files[${#package_files[@]}]="$file"
+                        file_count=$((file_count + 1))
                         debug_log "Added package file $file_count: $file"
+                        debug_log "Current package_files array size: ${#package_files[@]}"
                     else
                         debug_log "Skipping empty file entry"
                     fi
@@ -462,9 +464,11 @@ scan_packages() {
                 for file in "${temp_files[@]}"; do
                     debug_log "Processing file: '$file'"
                     if [[ -n "$file" ]]; then
-                        package_files+=("$file")
-                        ((file_count++))
+                        debug_log "Adding file to package_files array..."
+                        package_files[${#package_files[@]}]="$file"
+                        file_count=$((file_count + 1))
                         debug_log "Added package file $file_count: $file"
+                        debug_log "Current package_files array size: ${#package_files[@]}"
                     else
                         debug_log "Skipping empty file entry"
                     fi
