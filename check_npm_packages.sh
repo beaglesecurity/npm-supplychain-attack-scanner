@@ -242,11 +242,37 @@ scan_packages() {
     # Compatible with bash 3.2+ (macOS default) and Linux
     local temp_file=$(mktemp)
     find_package_files | head -50 > "$temp_file"
-    while IFS= read -r file; do
-        if [[ -n "$file" ]]; then
-            package_files+=("$file")
+    
+    # More robust file reading that works across different bash versions
+    if [[ -s "$temp_file" ]]; then
+        # Use mapfile if available (most reliable method)
+        if command -v mapfile >/dev/null 2>&1; then
+            mapfile -t temp_files < "$temp_file"
+            for file in "${temp_files[@]}"; do
+                if [[ -n "$file" ]]; then
+                    package_files[${#package_files[@]}]="$file"
+                fi
+            done
+        else
+            # Fallback: use readarray
+            if command -v readarray >/dev/null 2>&1; then
+                readarray -t temp_files < "$temp_file" 2>/dev/null
+                for file in "${temp_files[@]}"; do
+                    if [[ -n "$file" ]]; then
+                        package_files[${#package_files[@]}]="$file"
+                    fi
+                done
+            else
+                # Final fallback: use while read
+                while IFS= read -r file || [[ -n "$file" ]]; do
+                    if [[ -n "$file" ]]; then
+                        package_files[${#package_files[@]}]="$file"
+                    fi
+                done < "$temp_file"
+            fi
         fi
-    done < "$temp_file"
+    fi
+    
     rm -f "$temp_file"
     
     if [[ ${#package_files[@]} -eq 0 ]]; then
@@ -340,7 +366,7 @@ scan_packages() {
                 log_info "    Package not found in any dependency section"
             fi
             
-            ((checked_files++))
+            checked_files=$((checked_files + 1))
             done
         fi
         
@@ -354,14 +380,14 @@ scan_packages() {
         
         if [[ "$found" == "true" ]]; then
             if [[ "$version_match" == "true" ]]; then
-                FOUND_PACKAGES+=("$package_spec:$details:EXACT_VERSION")
+                FOUND_PACKAGES[${#FOUND_PACKAGES[@]}]="$package_spec:$details:EXACT_VERSION"
                 log_success "Package $package_name@$expected_version found (EXACT VERSION MATCH)"
             else
-                FOUND_PACKAGES+=("$package_spec:$details:DIFFERENT_VERSION")
+                FOUND_PACKAGES[${#FOUND_PACKAGES[@]}]="$package_spec:$details:DIFFERENT_VERSION"
                 log_warning "Package $package_name found but DIFFERENT VERSION than $expected_version"
             fi
         else
-            NOT_FOUND_PACKAGES+=("$package_spec")
+            NOT_FOUND_PACKAGES[${#NOT_FOUND_PACKAGES[@]}]="$package_spec"
             log_info "Package $package_name@$expected_version not found"
         fi
     done
